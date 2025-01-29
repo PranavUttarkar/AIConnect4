@@ -1,148 +1,214 @@
+# By submitting this assignment, I agree to the following:
+#   "Aggies do not lie, cheat, or steal, or tolerate those who do."
+#   "I have not given or received any unauthorized aid on this assignment."
+#
+# Names:        Joshua Landgraf
+#               Pranav Uttarkar
+#               Milan Guddeti
+#               Braydyn Godley
+#               Bokai Liao
+# Section:      216
+# Assignment:   Lab 13 Team
+# Date:         11/25/2024
+
+
 import numpy as np
 import pygame
 import sys
 import math
+import os
 
-BLUE = (0,0,255)
-BLACK = (0,0,0)
-RED = (255,0,0)
-YELLOW = (255,255,0)
+# Colors
+COLOR_BLUE = (1, 0, 200)
+COLOR_BLACK = (0, 0, 0)
+COLOR_RED = (200, 0, 0)
+COLOR_YELLOW = (255, 255, 0)
+COLOR_WHITE = (255, 255, 255)
 
-ROW_COUNT = 6
-COLUMN_COUNT = 7
+ROWS = 6
+COLUMNS = 7
+SQUARESIZE = 100
+RADIUS = int(SQUARESIZE / 2 - 5)
 
-def create_board():
-	board = np.zeros((ROW_COUNT,COLUMN_COUNT))
-	return board
-
-def drop_piece(board, row, col, piece):
-	board[row][col] = piece
-
-def is_valid_location(board, col):
-	return board[ROW_COUNT-1][col] == 0
-
-def get_next_open_row(board, col):
-	for r in range(ROW_COUNT):
-		if board[r][col] == 0:
-			return r
-
-def print_board(board):
-	print(np.flip(board, 0))
-
-def winning_move(board, piece):
-	# Check horizontal locations for win
-	for c in range(COLUMN_COUNT-3):
-		for r in range(ROW_COUNT):
-			if board[r][c] == piece and board[r][c+1] == piece and board[r][c+2] == piece and board[r][c+3] == piece:
-				return True
-
-	# Check vertical locations for win
-	for c in range(COLUMN_COUNT):
-		for r in range(ROW_COUNT-3):
-			if board[r][c] == piece and board[r+1][c] == piece and board[r+2][c] == piece and board[r+3][c] == piece:
-				return True
-
-	# Check positively sloped diaganols
-	for c in range(COLUMN_COUNT-3):
-		for r in range(ROW_COUNT-3):
-			if board[r][c] == piece and board[r+1][c+1] == piece and board[r+2][c+2] == piece and board[r+3][c+3] == piece:
-				return True
-
-	# Check negatively sloped diaganols
-	for c in range(COLUMN_COUNT-3):
-		for r in range(3, ROW_COUNT):
-			if board[r][c] == piece and board[r-1][c+1] == piece and board[r-2][c+2] == piece and board[r-3][c+3] == piece:
-				return True
-
-def draw_board(board):
-	for c in range(COLUMN_COUNT):
-		for r in range(ROW_COUNT):
-			pygame.draw.rect(screen, BLUE, (c*SQUARESIZE, r*SQUARESIZE+SQUARESIZE, SQUARESIZE, SQUARESIZE))
-			pygame.draw.circle(screen, BLACK, (int(c*SQUARESIZE+SQUARESIZE/2), int(r*SQUARESIZE+SQUARESIZE+SQUARESIZE/2)), RADIUS)
-	
-	for c in range(COLUMN_COUNT):
-		for r in range(ROW_COUNT):		
-			if board[r][c] == 1:
-				pygame.draw.circle(screen, RED, (int(c*SQUARESIZE+SQUARESIZE/2), height-int(r*SQUARESIZE+SQUARESIZE/2)), RADIUS)
-			elif board[r][c] == 2: 
-				pygame.draw.circle(screen, YELLOW, (int(c*SQUARESIZE+SQUARESIZE/2), height-int(r*SQUARESIZE+SQUARESIZE/2)), RADIUS)
-	pygame.display.update()
+# File to save the score
+SCORE_FILE = "connect4_scores.txt"
 
 
-board = create_board()
-print_board(board)
-game_over = False
-turn = 0
+def make_grid():
+    """Creates and returns an empty game grid."""
+    grid = np.zeros((ROWS, COLUMNS))
+    return grid
+
+
+def place_disc(grid, row, col, disc):
+    """Places a disc in the specified row and column."""
+    grid[row][col] = disc
+
+
+def is_column_valid(grid, col):
+    """Checks if the selected column is valid for placing a disc."""
+    return grid[ROWS - 1][col] == 0
+
+
+def find_next_open_row(grid, col):
+    """Finds the next open row in the specified column."""
+    for row in range(ROWS):
+        if grid[row][col] == 0:
+            return row
+
+
+def check_victory(grid, disc):
+    """Checks if the given disc has won the game."""
+    # Check horizontal connections
+    for col in range(COLUMNS - 3):
+        for row in range(ROWS):
+            if all(grid[row][col + i] == disc for i in range(4)):
+                return True
+
+    # Check vertical connections
+    for col in range(COLUMNS):
+        for row in range(ROWS - 3):
+            if all(grid[row + i][col] == disc for i in range(4)):
+                return True
+
+    # Check diagonals (positive slope)
+    for col in range(COLUMNS - 3):
+        for row in range(ROWS - 3):
+            if all(grid[row + i][col + i] == disc for i in range(4)):
+                return True
+
+    # Check diagonals (negative slope)
+    for col in range(COLUMNS - 3):
+        for row in range(3, ROWS):
+            if all(grid[row - i][col + i] == disc for i in range(4)):
+                return True
+
+    return False
+
+
+def draw_grid(grid, screen, height):
+    """Draws the game grid using Pygame."""
+    for col in range(COLUMNS):
+        for row in range(ROWS):
+            pygame.draw.rect(screen, COLOR_BLUE, (col * SQUARESIZE, row * SQUARESIZE + SQUARESIZE, SQUARESIZE, SQUARESIZE))
+            pygame.draw.circle(screen, COLOR_BLACK, (int(col * SQUARESIZE + SQUARESIZE / 2),
+                                                     int(row * SQUARESIZE + SQUARESIZE + SQUARESIZE / 2)), RADIUS)
+
+    for col in range(COLUMNS):
+        for row in range(ROWS):
+            if grid[row][col] == 1:
+                pygame.draw.circle(screen, COLOR_RED,
+                                   (int(col * SQUARESIZE + SQUARESIZE / 2), height - int(row * SQUARESIZE + SQUARESIZE / 2)),
+                                   RADIUS)
+            elif grid[row][col] == 2:
+                pygame.draw.circle(screen, COLOR_YELLOW,
+                                   (int(col * SQUARESIZE + SQUARESIZE / 2), height - int(row * SQUARESIZE + SQUARESIZE / 2)),
+                                   RADIUS)
+    pygame.display.update()
+
+
+def display_menu(screen, font):
+    """Displays the game menu."""
+    screen.fill(COLOR_WHITE)
+    title = font.render("Connect 4 Menu", True, COLOR_BLUE)
+    screen.blit(title, (200, 50))
+
+    options = ["1. Show Rules", "2. Display Scores", "3. Start Game", "4. Quit"]
+    for i, option in enumerate(options):
+        label = font.render(option, True, COLOR_BLACK)
+        screen.blit(label, (200, 150 + i * 50))
+
+    pygame.display.update()
+
+
+def load_scores():
+    """Loads scores from a file. If the file doesn't exist, it makes the scores."""
+    if not os.path.exists(SCORE_FILE):
+        return {"Player 1": 0, "Player 2": 0}
+    with open(SCORE_FILE, "r") as file:
+        try:
+            scores = eval(file.read())
+        except Exception:
+            scores = {"Player 1": 0, "Player 2": 0}
+    return scores
+
+
+def save_scores(scores):
+    """Saves the scores to a file."""
+    with open(SCORE_FILE, "w") as file:
+        file.write(str(scores))
+
+
+def show_rules(screen, font):
+    """Displays the game rules on the screen."""
+    screen.fill(COLOR_WHITE)
+    rules = [
+        "1. Players take turns dropping a disc into a column.", "2. The first player to connect 4 discs wins.", "3. If all columns are filled, the game is a draw."]
+    y_offset = 100
+    for rule in rules:
+        label = font.render(rule, True, COLOR_BLACK)
+        screen.blit(label, (50, y_offset))
+        y_offset += 50
+
+    pygame.display.update()
+    pygame.time.wait(15000)
+
+
 
 pygame.init()
+width = COLUMNS * SQUARESIZE
+height = (ROWS + 1) * SQUARESIZE
+screen = pygame.display.set_mode((width, height))
+font = pygame.font.SysFont("comicsans", 20)
 
-SQUARESIZE = 100
+# make game state
+grid = make_grid()
+scores = load_scores()
+game_over = False
+turn = 0
+in_menu = True
 
-width = COLUMN_COUNT * SQUARESIZE
-height = (ROW_COUNT+1) * SQUARESIZE
+while True:
+    if in_menu:
+        display_menu(screen, font)
+    else:
+        draw_grid(grid, screen, height)
 
-size = (width, height)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            save_scores(scores)
+            pygame.quit()
+            sys.exit()
 
-RADIUS = int(SQUARESIZE/2 - 5)
+        if in_menu:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1:
+                    show_rules(screen, font)
+                elif event.key == pygame.K_2:
+                    print(f"Scores: {scores}")
+                elif event.key == pygame.K_3:
+                    in_menu = False
+                elif event.key == pygame.K_4:
+                    save_scores(scores)
+                    pygame.quit()
+                    sys.exit()
 
-screen = pygame.display.set_mode(size)
-draw_board(board)
-pygame.display.update()
+        elif not in_menu:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                posx = event.pos[0]
+                col = int(math.floor(posx / SQUARESIZE))
+                if is_column_valid(grid, col):
+                    row = find_next_open_row(grid, col)
+                    place_disc(grid, row, col, turn + 1)
 
-myfont = pygame.font.SysFont("monospace", 75)
+                    if check_victory(grid, turn + 1):
+                        draw_grid(grid, screen, height)
+                        print(f"Player {turn + 1} wins!")
+                        scores[f"Player {turn + 1}"] += 1
+                        save_scores(scores)
+                        pygame.time.wait(3000)
+                        in_menu = True
+                        grid = make_grid()
 
-while not game_over:
-
-	for event in pygame.event.get():
-		if event.type == pygame.QUIT:
-			sys.exit()
-
-		if event.type == pygame.MOUSEMOTION:
-			pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
-			posx = event.pos[0]
-			if turn == 0:
-				pygame.draw.circle(screen, RED, (posx, int(SQUARESIZE/2)), RADIUS)
-			else: 
-				pygame.draw.circle(screen, YELLOW, (posx, int(SQUARESIZE/2)), RADIUS)
-		pygame.display.update()
-
-		if event.type == pygame.MOUSEBUTTONDOWN:
-			pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
-			#print(event.pos)
-			# Ask for Player 1 Input
-			if turn == 0:
-				posx = event.pos[0]
-				col = int(math.floor(posx/SQUARESIZE))
-
-				if is_valid_location(board, col):
-					row = get_next_open_row(board, col)
-					drop_piece(board, row, col, 1)
-
-					if winning_move(board, 1):
-						label = myfont.render("Player 1 wins!!", 1, RED)
-						screen.blit(label, (40,10))
-						game_over = True
-
-
-			# # Ask for Player 2 Input
-			else:				
-				posx = event.pos[0]
-				col = int(math.floor(posx/SQUARESIZE))
-
-				if is_valid_location(board, col):
-					row = get_next_open_row(board, col)
-					drop_piece(board, row, col, 2)
-
-					if winning_move(board, 2):
-						label = myfont.render("Player 2 wins!!", 1, YELLOW)
-						screen.blit(label, (40,10))
-						game_over = True
-
-			print_board(board)
-			draw_board(board)
-
-			turn += 1
-			turn = turn % 2
-
-			if game_over:
-				pygame.time.wait(3000)
+                    turn = (turn + 1) % 2
+ 
